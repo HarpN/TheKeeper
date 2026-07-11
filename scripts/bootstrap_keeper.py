@@ -70,6 +70,83 @@ def initialize_keeper_tables(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_games (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_agent TEXT NOT NULL,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            completion_rate REAL NOT NULL DEFAULT 0,
+            trophy_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(game_title, platform)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_guides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_agent TEXT NOT NULL,
+            guide_url TEXT NOT NULL,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            quality_views INTEGER NOT NULL DEFAULT 0,
+            quality_age_days INTEGER NOT NULL DEFAULT 0,
+            quality_score REAL NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(guide_url)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_game_guide_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            guide_url TEXT NOT NULL,
+            match_confidence REAL NOT NULL,
+            score_views REAL NOT NULL DEFAULT 0,
+            score_recency REAL NOT NULL DEFAULT 0,
+            score_total REAL NOT NULL DEFAULT 0,
+            match_mode TEXT NOT NULL DEFAULT 'probabilistic',
+            linked_at TEXT NOT NULL,
+            UNIQUE(game_title, platform, guide_url)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity_type TEXT NOT NULL,
+            entity_key TEXT NOT NULL,
+            version_label TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            CHECK (version_label IN ('LATEST', 'PREVIOUS', 'STABLE')),
+            UNIQUE(entity_type, entity_key, version_label)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_discrepancies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            discrepancy_type TEXT NOT NULL,
+            expected_value TEXT NOT NULL,
+            observed_value TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PENDING_USER',
+            suggested_resolution TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            CHECK (status IN ('PENDING_USER', 'CONFIRMED', 'DISMISSED'))
+        )
+        """
+    )
 
 
 def seed_demo_data(connection: sqlite3.Connection) -> int:
@@ -145,6 +222,112 @@ def seed_demo_data(connection: sqlite3.Connection) -> int:
             ),
         )
 
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO keeper_games (
+            source_agent, game_title, platform, completion_rate, trophy_count, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        ("sly", "Elden Ring", "PS5", 71.5, 42, "2026-07-11T00:00:00+00:00"),
+    )
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO keeper_guides (
+            source_agent, guide_url, game_title, platform,
+            quality_views, quality_age_days, quality_score, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "milo",
+            "https://example.org/guides/elden-ring-routes",
+            "Elden Ring",
+            "PS5",
+            240000,
+            120,
+            0.92,
+            "2026-07-11T00:00:00+00:00",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO keeper_game_guide_links (
+            game_title, platform, guide_url, match_confidence,
+            score_views, score_recency, score_total, match_mode, linked_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Elden Ring",
+            "PS5",
+            "https://example.org/guides/elden-ring-routes",
+            0.94,
+            0.95,
+            0.80,
+            0.92,
+            "probabilistic",
+            "2026-07-11T00:00:00+00:00",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO keeper_snapshots (
+            entity_type, entity_key, version_label, payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "game",
+            "Elden Ring::PS5",
+            "LATEST",
+            json.dumps({"completion_rate": 71.5, "trophy_count": 42}, separators=(",", ":")),
+            "2026-07-11T00:00:00+00:00",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO keeper_snapshots (
+            entity_type, entity_key, version_label, payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "game",
+            "Elden Ring::PS5",
+            "PREVIOUS",
+            json.dumps({"completion_rate": 69.0, "trophy_count": 40}, separators=(",", ":")),
+            "2026-07-10T00:00:00+00:00",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO keeper_snapshots (
+            entity_type, entity_key, version_label, payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "game",
+            "Elden Ring::PS5",
+            "STABLE",
+            json.dumps({"completion_rate": 65.0, "trophy_count": 36}, separators=(",", ":")),
+            "2026-07-09T00:00:00+00:00",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO keeper_discrepancies (
+            game_title, platform, discrepancy_type, expected_value,
+            observed_value, status, suggested_resolution, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Elden Ring",
+            "PS5",
+            "completion_rate",
+            "71.5",
+            "70.1",
+            "PENDING_USER",
+            "Review sync timing and confirm whether to refresh linked plan metrics.",
+            "2026-07-11T00:00:00+00:00",
+        ),
+    )
+
     return len(samples)
 
 
@@ -216,7 +399,12 @@ def main() -> None:
                 print(f"Seeded {inserted} demo chunk(s).")
 
         total = connection.execute("SELECT COUNT(*) AS total FROM keeper_chunks").fetchone()[0]
+        game_total = connection.execute("SELECT COUNT(*) AS total FROM keeper_games").fetchone()[0]
+        guide_total = connection.execute("SELECT COUNT(*) AS total FROM keeper_guides").fetchone()[0]
+        link_total = connection.execute("SELECT COUNT(*) AS total FROM keeper_game_guide_links").fetchone()[0]
+        discrepancy_total = connection.execute("SELECT COUNT(*) AS total FROM keeper_discrepancies").fetchone()[0]
         print(f"Keeper rows available: {total}")
+        print(f"Games: {game_total} | Guides: {guide_total} | Links: {link_total} | Discrepancies: {discrepancy_total}")
 
         results = retrieve(connection, args.query, args.top_k)
         print(f"\nTop {len(results)} result(s) for query: {args.query!r}\n")

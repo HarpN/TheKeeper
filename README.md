@@ -1,33 +1,56 @@
 # 🗝️ TheKeeper: Semantic World-State Aggregator
 
-TheKeeper is the read-focused semantic memory layer for Charon. It stores blended, retrieval-ready chunks so Charon can perform local search first and send only minimal context to the LLM.
+TheKeeper is Charon's read-optimized world-state memory. It stores replicated gameplay and guide context so Charon can answer planning questions with local retrieval before calling the LLM.
 
 ## Core Responsibilities
 
-- Aggregate chunked guide context from Milo.
-- Persist retrieval text and embeddings in a local SQLite file (`keeper_blended.db`).
-- Serve as Charon's local read path for semantic lookups.
-- Keep mutation authority outside the keeper path (writes still flow through governance and execution services).
+- Receive replicated deltas from Sly and Milo without polling them every few minutes.
+- Maintain a blended local view in SQLite (`keeper_blended.db`) for interaction and planning.
+- Link game state and guide chunks using platform-aware probabilistic matching.
+- Keep three retained versions for snapshots and links: latest, previous, and last stable.
+- Surface discrepancy candidates for user-confirmed resolution flows in Charon.
+
+## Trust Boundary
+
+- TheKeeper is only a Charon-facing memory layer.
+- TheKeeper does not expose or reason about backend execution authority.
+- Charon should treat TheKeeper as the deepest data surface in interactive mode.
+
+## Data Flow Model
+
+1. Sly and Milo run on schedules to respect upstream rate limits.
+2. On real-time increases (new game or guide delta), Sly and Milo push deltas.
+3. TheKeeper ingests deltas, updates linked views, and versions snapshots.
+4. Charon retrieves top context from TheKeeper for planning responses.
+5. Charon proposes user-confirmed changes upward to governance paths.
+6. Later syncs can surface discrepancies (trophy count, completion, platform version) for user confirmation.
+
+## Linking Rules
+
+- Join key baseline: game title plus platform.
+- Link strategy: probabilistic matching with confidence scoring.
+- Guide ranking preference: quality score driven by age and view count.
+- Deterministic-only linking is intentionally avoided to reduce cross-platform mismatches.
 
 ## Internal Architecture
 
 ```mermaid
 graph TD
-    subgraph "TheKeeper Node"
-        KDB[(keeper_blended.db)]
-    end
-
-    subgraph "Primary Agent Cluster"
+    subgraph "Agent Updates"
+        S[Sly]
         M[Milo]
-        C[Charon]
-        J[JudgeJudy]
-        D[Dewey]
     end
 
-    M -->|chunk + embedding export| KDB
-    C -->|top-k semantic retrieval| KDB
-    C -->|minimal structured proposal| J
-    J -->|approved mandate| D
+    subgraph "TheKeeper"
+        KDB[(keeper_blended.db)]
+        L[Probabilistic Linker]
+        V[Snapshot and Link Versioning]
+    end
+
+    C[Charon] -->|semantic retrieval + session planning| KDB
+    S -->|scheduled deltas + real-time increases| KDB
+    M -->|scheduled deltas + guide changes| KDB
+    KDB --> L --> V
 ```
 
 ## Quickstart (For New Downloaders)
@@ -54,8 +77,13 @@ python scripts/bootstrap_keeper.py --seed-demo --query "best platinum cleanup ro
 
 - `keeper_chunks`: source text and metadata.
 - `keeper_chunk_embeddings`: vector payloads keyed by `correlation_id` and `chunk_index`.
+- `keeper_games`: replicated game-level state keyed by game title and platform.
+- `keeper_guides`: replicated guide metadata with quality metrics.
+- `keeper_game_guide_links`: probabilistic links with confidence and score features.
+- `keeper_snapshots`: retained versions (`LATEST`, `PREVIOUS`, `STABLE`).
+- `keeper_discrepancies`: surfaced delta mismatches pending user confirmation.
 
-These tables are now compatible with Milo export and Charon retrieval in the parent workspace.
+These tables are designed to support replicated deltas from Sly/Milo and interaction retrieval in Charon.
 
 ## Integration In Parent Workspace
 
