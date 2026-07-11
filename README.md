@@ -81,6 +81,26 @@ python scripts/run_linker.py --db-path keeper_blended.db --threshold 0.55
 
 This evaluates game-title + platform matches and persists confidence-scored links into `keeper_game_guide_links`.
 
+### Run Discrepancy Workflow
+
+Scan for mismatches between replicated game state and latest game snapshots:
+
+```bash
+python scripts/discrepancy_workflow.py --db-path keeper_blended.db --action scan
+```
+
+Resolve a pending discrepancy with user decision:
+
+```bash
+python scripts/discrepancy_workflow.py --db-path keeper_blended.db --action resolve --id 1 --decision CONFIRMED
+```
+
+List discrepancies by status:
+
+```bash
+python scripts/discrepancy_workflow.py --db-path keeper_blended.db --action list --status PENDING_USER
+```
+
 ## Keeper Schema (Current)
 
 - `keeper_chunks`: source text and metadata.
