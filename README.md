@@ -1,36 +1,67 @@
 # 🗝️ TheKeeper: Semantic World-State Aggregator
 
-**TheKeeper** is a specialized background daemon and read-only database manager designed to serve as the exclusive "world state" memory for the Charon conversational UI. 
+TheKeeper is the read-focused semantic memory layer for Charon. It stores blended, retrieval-ready chunks so Charon can perform local search first and send only minimal context to the LLM.
 
-By physically isolating read-heavy semantic search queries from the primary transaction cluster, TheKeeper ensures high-performance natural language interactions without degrading the execution speeds of the primary ingestion agents.
+## Core Responsibilities
 
-## ⚙️ Core Responsibilities
+- Aggregate chunked guide context from Milo.
+- Persist retrieval text and embeddings in a local SQLite file (`keeper_blended.db`).
+- Serve as Charon's local read path for semantic lookups.
+- Keep mutation authority outside the keeper path (writes still flow through governance and execution services).
 
-*   **Secure Aggregation:** Reaches across the network via strict Mutual TLS (mTLS) gRPC channels to fetch real-time PSN telemetry from **Sly** and scraped strategy chunks from **Milo**.
-*   **Blended State Generation:** Merges relational user metrics with unstructured guide data into a highly optimized, unified local SQLite file (`keeper_blended.db`).
-*   **Local Vectorization (RAG):** Automatically processes incoming text chunks through a lightweight local **Ollama** embedding model (e.g., `all-minilm`), storing the 384-dimension results into virtual shadow tables.
-*   **Charon's Oracle:** Serves as the single, read-only query endpoint for Charon. Charon searches TheKeeper using K-Nearest Neighbor vector math to extract highly relevant context snippets before formulating governance proposals.
-
-## 🏗️ Internal Architecture
-
-TheKeeper intentionally operates with a "Zero-Write" constraint regarding the broader cluster. It believes it is the ultimate database for the UI, forcing Charon to pass all mutation intents upward to the **Judy Council** rather than attempting direct local writes.
+## Internal Architecture
 
 ```mermaid
 graph TD
-    subgraph "TheKeeper Read-Only VM"
-        K_Service[Keeper Sync Daemon]
-        O[Local Ollama Embeddings]
-        DB[(blended_read_only.db)]
-        
-        K_Service -->|Generate Vectors| O
-        O -->|Store 384d Float| DB
+    subgraph "TheKeeper Node"
+        KDB[(keeper_blended.db)]
     end
 
-    subgraph "Primary Cluster (mTLS)"
-        M[Milo Agent]
-        S[Sly Agent]
+    subgraph "Primary Agent Cluster"
+        M[Milo]
+        C[Charon]
+        J[JudgeJudy]
+        D[Dewey]
     end
 
-    C[Charon UI] -->|Semantic Search| DB
-    K_Service -->|gRPC Fetch| M
-    K_Service -->|gRPC Fetch| S
+    M -->|chunk + embedding export| KDB
+    C -->|top-k semantic retrieval| KDB
+    C -->|minimal structured proposal| J
+    J -->|approved mandate| D
+```
+
+## Quickstart (For New Downloaders)
+
+From the TheKeeper folder:
+
+```bash
+python scripts/bootstrap_keeper.py --seed-demo
+```
+
+What this does:
+
+1. Initializes keeper tables if they do not exist.
+2. Seeds demo chunks (only when empty).
+3. Runs a retrieval smoke test and prints top matches.
+
+### Optional Query Example
+
+```bash
+python scripts/bootstrap_keeper.py --seed-demo --query "best platinum cleanup route" --top-k 3
+```
+
+## Keeper Schema (Current)
+
+- `keeper_chunks`: source text and metadata.
+- `keeper_chunk_embeddings`: vector payloads keyed by `correlation_id` and `chunk_index`.
+
+These tables are now compatible with Milo export and Charon retrieval in the parent workspace.
+
+## Integration In Parent Workspace
+
+Use these defaults in sibling repos:
+
+- Milo `KEEPER_DB_PATH=../TheKeeper/keeper_blended.db`
+- Charon `KEEPER_DB_PATH=../TheKeeper/keeper_blended.db`
+
+Milo writes chunks and embeddings to keeper tables; Charon queries keeper tables first and falls back to Milo-local tables when needed.
