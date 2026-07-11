@@ -73,6 +73,14 @@ What this does:
 python scripts/bootstrap_keeper.py --seed-demo --query "best platinum cleanup route" --top-k 3
 ```
 
+### Run Probabilistic Linker
+
+```bash
+python scripts/run_linker.py --db-path keeper_blended.db --threshold 0.55
+```
+
+This evaluates game-title + platform matches and persists confidence-scored links into `keeper_game_guide_links`.
+
 ## Keeper Schema (Current)
 
 - `keeper_chunks`: source text and metadata.
