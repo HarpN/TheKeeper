@@ -7,6 +7,56 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 
+def ensure_linker_tables(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_games (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_agent TEXT NOT NULL,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            completion_rate REAL NOT NULL DEFAULT 0,
+            trophy_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(game_title, platform)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_guides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_agent TEXT NOT NULL,
+            guide_url TEXT NOT NULL,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            quality_views INTEGER NOT NULL DEFAULT 0,
+            quality_age_days INTEGER NOT NULL DEFAULT 0,
+            quality_score REAL NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(guide_url)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS keeper_game_guide_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_title TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            guide_url TEXT NOT NULL,
+            match_confidence REAL NOT NULL,
+            score_views REAL NOT NULL DEFAULT 0,
+            score_recency REAL NOT NULL DEFAULT 0,
+            score_total REAL NOT NULL DEFAULT 0,
+            match_mode TEXT NOT NULL DEFAULT 'probabilistic',
+            linked_at TEXT NOT NULL,
+            UNIQUE(game_title, platform, guide_url)
+        )
+        """
+    )
+
+
 def normalize_name(name: str) -> str:
     return " ".join(name.lower().replace(":", " ").replace("-", " ").split())
 
@@ -20,6 +70,7 @@ def link_score(similarity: float, quality_score: float) -> float:
 
 
 def run_linker(connection: sqlite3.Connection, threshold: float) -> tuple[int, int]:
+    ensure_linker_tables(connection)
     games = connection.execute(
         "SELECT game_title, platform FROM keeper_games"
     ).fetchall()
