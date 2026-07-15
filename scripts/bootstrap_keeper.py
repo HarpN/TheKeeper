@@ -54,7 +54,13 @@ def initialize_keeper_tables(connection: sqlite3.Connection) -> None:
             chunk_index INTEGER NOT NULL,
             heading TEXT NOT NULL,
             text TEXT NOT NULL,
-            token_count INTEGER NOT NULL
+            token_count INTEGER NOT NULL,
+            trust_status TEXT NOT NULL DEFAULT 'approved',
+            trust_confidence REAL NOT NULL DEFAULT 1.0,
+            source_domain TEXT NOT NULL DEFAULT '',
+            content_hash TEXT NOT NULL DEFAULT '',
+            sanitizer_version TEXT NOT NULL DEFAULT '',
+            safety_notes TEXT NOT NULL DEFAULT ''
         )
         """
     )
@@ -95,6 +101,10 @@ def initialize_keeper_tables(connection: sqlite3.Connection) -> None:
             quality_views INTEGER NOT NULL DEFAULT 0,
             quality_age_days INTEGER NOT NULL DEFAULT 0,
             quality_score REAL NOT NULL DEFAULT 0,
+            trust_status TEXT NOT NULL DEFAULT 'approved',
+            trust_confidence REAL NOT NULL DEFAULT 1.0,
+            source_domain TEXT NOT NULL DEFAULT '',
+            sanitizer_version TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL,
             UNIQUE(guide_url)
         )

@@ -121,3 +121,21 @@ Use these defaults in sibling repos:
 - Charon `KEEPER_DB_PATH=../TheKeeper/keeper_blended.db`
 
 Milo writes chunks and embeddings to keeper tables; Charon queries keeper tables first and falls back to Milo-local tables when needed.
+
+### Recent Improvement Notes
+
+- Keeper guide and chunk records are now used with trust metadata (`trust_status`, `trust_confidence`, source/sanitizer metadata) in the active retrieval path.
+- Charon retrieval integration is now aligned to approved-only keeper chunks when trust columns are present.
+- Probabilistic linking and discrepancy workflows remain the canonical operational path for blended guide/game context.
+
+## Changelog
+
+### v0.2.0 - 2026-07-14
+
+Added:
+
+- Trust-metadata integration expectations for Milo exports and Charon retrieval behavior.
+
+Changed:
+
+- Consolidated guidance for probabilistic linking plus discrepancy workflow as the primary blended-state operations model.
