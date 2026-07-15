@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "project": {
+    "name": "TheKeeper",
+    "description": "Read-optimized blended state store for Charon retrieval and linking",
+    "default_branch": "main"
+  },
+  "runtime": {
+    "primary_mode": "python_scripts"
+  },
+  "commands": {
+    "bootstrap": {
+      "shell": "powershell",
+      "cwd": ".",
+      "command": "python scripts/bootstrap_keeper.py --seed-demo"
+    },
+    "linker": {
+      "shell": "powershell",
+      "cwd": ".",
+      "command": "python scripts/run_linker.py --db-path keeper_blended.db --threshold 0.55"
+    },
+    "discrepancy_scan": {
+      "shell": "powershell",
+      "cwd": ".",
+      "command": "python scripts/discrepancy_workflow.py --db-path keeper_blended.db --action scan"
+    }
+  },
+  "entrypoint_files": [
+    "README.md",
+    "scripts/bootstrap_keeper.py",
+    "scripts/run_linker.py",
+    "scripts/discrepancy_workflow.py",
+    "tests/test_keeper_retrieval.py"
+  ]
+}
